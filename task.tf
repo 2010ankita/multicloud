@@ -1,3 +1,4 @@
+
 provider "aws" {
   region   = "ap-south-1"
   profile  = "ankita"
@@ -39,7 +40,7 @@ resource "aws_security_group" "allow_http" {
 
 variable "enter_ur_key_name" {
  type = string
- default = "mykey1111"
+ default = "abc"
 }
 
 resource "aws_instance" "myos" {
@@ -51,7 +52,7 @@ resource "aws_instance" "myos" {
  connection {
   type = "ssh"
   user = "ec2-user"
-  private_key = file("C:/Users/abc/Downloads/mykey1111.pem")
+  private_key = file("C:/Users/abc/Downloads/abc.pem")
   host = aws_instance.myos.public_ip
  }
 
@@ -67,44 +68,42 @@ resource "aws_instance" "myos" {
  }
 }
 
-resource "aws_ebs_volume" "ebs1" {
- depends_on = [
-  aws_instance.myos,
- ]
+#To create an efs volume
  
- availability_zone = aws_instance.myos.availability_zone
- size = 1
+resource "aws_efs_file_system" "myefs" {
+ creation_token = "my-efs"
  tags = {
-  Name = "myebs"
+  Name = "myefs1"
  }
 }
+# To mount target of EFS to EC2 Instance
 
-resource "aws_volume_attachment" "ebs_att" {
- depends_on = [
-  aws_ebs_volume.ebs1,
- ]
-  device_name = "/dev/sdh"
-  volume_id   = aws_ebs_volume.ebs1.id
-  instance_id = aws_instance.myos.id
-  force_detach = true
+resource "aws_efs_mount_target" "mountefs" {
+ depends_on = [aws_efs_file_system.myefs,]
+ file_system_id = aws_efs_file_system.myefs.id
+ subnet_id = "subnet-ebe5df83"
+ security_groups = [aws_security_group.allow_http.id]
 }
+ 
+#To mount EFS volume
 
 resource "null_resource" "nullremote" {
  depends_on = [
-  aws_volume_attachment.ebs_att,
+  aws_efs_mount_target.mountefs,
  ]
  
  connection {
   type     = "ssh"
   user     = "ec2-user"
-  private_key = file("C:/Users/abc/Downloads/mykey1111.pem")
+  port     = 22
+  private_key = file("C:/Users/abc/Downloads/abc.pem")
   host     = aws_instance.myos.public_ip
  }
 
+
  provisioner "remote-exec" {
   inline = [
-   "sudo mkfs.ext4  /dev/xvdh",
-   "sudo mount  /dev/xvdh  /var/www/html",
+   "sudo mount -t nfs4 ${aws_efs_mount_target.mountefs.ip_address}:/ /var/www/html/",
    "sudo rm -rf /var/www/html/*",
    "sudo git clone https://github.com/2010ankita/multicloud.git /var/www/html/"
   ]
@@ -191,7 +190,7 @@ resource "aws_cloudfront_distribution" "distribution" {
 	connection {
 	type = "ssh"
 	user = "ec2-user"
-	private_key = file("C:/Users/abc/Downloads/mykey1111.pem")
+	private_key = file("C:/Users/abc/Downloads/abc.pem")
 	host = aws_instance.myos.public_ip
 	}
  
